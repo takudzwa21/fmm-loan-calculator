@@ -28,3 +28,5 @@ pydantic>=2.9
 
 # ── Development / testing ──
 # pytest>=8.3
+fastapi>=0.115
+uvicorn[standard]>=0.30
