@@ -206,3 +206,29 @@ python fmm_server.py            # serves on http://127.0.0.1:8000, matching the 
 You can point the front-end at a different engine URL by setting `VITE_ENGINE_API_URL`
 in a `.env` file. Run `python fmm_calculator.py --test` to self-check the engine against
 the original workbook figures, or `python fmm_calculator.py` for the interactive CLI.
+
+### Deploying
+
+The front-end and the engine are two separate deployments — a static/SSR host (e.g.
+Vercel) cannot run `fmm_server.py` for you, and the front-end has no way to reach it
+unless you tell it where it is.
+
+1. **Deploy the engine somewhere that stays running**, e.g. [Render](https://render.com)
+   (free tier is fine to start):
+   - New "Web Service" → connect this GitHub repo.
+   - Runtime: Python 3. Build command: none needed (stdlib only — see `requirements.txt`).
+   - Start command: `python fmm_server.py --host 0.0.0.0`
+     (it reads the platform's `$PORT` automatically; don't point a Uvicorn/Gunicorn
+     command at it — it isn't a FastAPI/ASGI app).
+   - Note the public URL Render gives you, e.g. `https://fmm-engine.onrender.com`.
+   - **Caveat:** free-tier instances spin down when idle and lose their local disk on
+     restart, so custom products and quote history won't reliably persist there. Add a
+     paid persistent disk, or use a host with real persistent storage, if that matters
+     to you.
+2. **Point the front-end at it**: in your Vercel project → Settings → Environment
+   Variables, add `VITE_ENGINE_API_URL` = the URL from step 1, then redeploy.
+
+Skipping step 1 (or leaving `VITE_ENGINE_API_URL` unset) means the deployed front-end
+falls back to its local-dev default, `http://127.0.0.1:8000` — in a visitor's browser
+that's *their own machine*, not a server, so every request fails and (in Chromium
+browsers) triggers a "wants to access devices on your local network" prompt.

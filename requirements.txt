@@ -1,32 +1,15 @@
 # ─── Loan Charges Calculator Engine — dependencies ───
-# The core calculation engine (charges, reducing-balance amortisation, APR,
-# JSON quote output) runs on the Python standard library alone — no installs
-# required for that part. The packages below are for the surrounding tooling.
-# Uncomment the ones you actually import.
-
-# ── Data validation / quote schema ──
-# Recommended: model the quote structure as typed objects instead of raw dicts.
-pydantic>=2.9
-
-# ── Excel migration / reading legacy calculators ──
-# Uncomment if the engine reads the old .xlsx calculators or exports to Excel.
-# openpyxl>=3.1
-# pandas>=2.2
-
-# ── Financial helpers ──
-# Uncomment if you use built-in IRR/rate solvers rather than analytic formulas.
-# numpy-financial>=1.0
-
-# ── Date handling ──
-# Uncomment if you use dateutil for month arithmetic instead of stdlib calendar.
-# python-dateutil>=2.9
-
-# ── API layer (for the planned Lovable front-end) ──
-# Uncomment when you expose the engine over HTTP.
-# fastapi>=0.115
-# uvicorn>=0.34
-
-# ── Development / testing ──
-# pytest>=8.3
-fastapi>=0.115
-uvicorn[standard]>=0.30
+# fmm_calculator.py (the engine) and fmm_server.py (the API server that wraps
+# it) are both standard-library-only, by design — see fmm_calculator.py's
+# module docstring. There is NOTHING to pip install to run either one.
+#
+# Deploying fmm_server.py: the start command is just
+#     python fmm_server.py --host 0.0.0.0
+# It is a plain http.server app, not FastAPI/Flask/Django — no ASGI/WSGI
+# entry point, no "app" object. Do not point a Uvicorn/Gunicorn start
+# command at it.
+#
+# If you later want to model the quote structure as typed objects instead of
+# raw dicts, or need to read/write legacy .xlsx calculators, add:
+#   pydantic>=2.9
+#   openpyxl>=3.1

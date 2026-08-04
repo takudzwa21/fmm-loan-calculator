@@ -32,6 +32,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import threading
 import uuid
 from datetime import date, datetime
@@ -430,7 +431,8 @@ def main() -> None:
 
     parser = argparse.ArgumentParser(description="FMM Loan Charges Engine — local API server")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=8000)
+    parser.add_argument("--port", type=int, default=int(os.environ.get("PORT", 8000)),
+                        help="Defaults to $PORT if set (Render/Railway/Heroku-style hosts), else 8000.")
     parser.add_argument("--quote-retention-months", type=int, default=QUOTE_RETENTION_MONTHS,
                         help="Auto-delete quote history older than this many months "
                              "(0 disables). Default: 3.")
