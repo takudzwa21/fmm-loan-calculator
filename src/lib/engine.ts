@@ -1,6 +1,13 @@
-export const ENGINE_URL =
-  (import.meta.env["VITE_ENGINE_API_URL"] as string | undefined)?.replace(/\/$/, "") ||
-  "http://127.0.0.1:8000";
+const CONFIGURED_ENGINE_URL = (import.meta.env["VITE_ENGINE_API_URL"] as string | undefined)?.replace(
+  /\/$/,
+  "",
+);
+
+// In dev, default to the local engine so `npm run dev` works with zero config.
+// In a deployed build, there is no sane default — 127.0.0.1 means "the
+// visitor's own machine," not a server — so leave it unset and fail loudly
+// instead of silently trying (and failing) to reach localhost.
+export const ENGINE_URL = CONFIGURED_ENGINE_URL || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
 
 export type Product = {
   id: string;
@@ -161,7 +168,7 @@ export type QuoteHistoryRecord = {
 export class EngineError extends Error {
   constructor(
     message: string,
-    public kind: "validation" | "network" | "server",
+    public kind: "validation" | "network" | "server" | "unconfigured",
   ) {
     super(message);
     this.name = "EngineError";
@@ -169,6 +176,14 @@ export class EngineError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  if (!ENGINE_URL) {
+    throw new EngineError(
+      "No calculation engine URL is configured for this deployment. Set VITE_ENGINE_API_URL " +
+        "in your hosting provider's environment variables and redeploy.",
+      "unconfigured",
+    );
+  }
+
   let res: Response;
   try {
     res = await fetch(`${ENGINE_URL}${path}`, {

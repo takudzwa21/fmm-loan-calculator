@@ -10,6 +10,7 @@ import {
   Trash2,
 } from "lucide-react";
 import {
+  EngineError,
   deleteQuoteHistoryRecord,
   fetchQuoteHistory,
   fetchQuoteHistoryRecord,
@@ -160,7 +161,11 @@ export function HistoryView() {
           <CardContent className="flex gap-2 pt-6 text-sm">
             <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
             <div>
-              <p className="font-semibold text-destructive">Cannot reach the calculation engine</p>
+              <p className="font-semibold text-destructive">
+                {listQuery.error instanceof EngineError && listQuery.error.kind === "unconfigured"
+                  ? "Calculation engine not configured"
+                  : "Cannot reach the calculation engine"}
+              </p>
               <p className="mt-1 text-foreground">{(listQuery.error as Error).message}</p>
             </div>
           </CardContent>

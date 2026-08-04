@@ -196,19 +196,25 @@ export function Calculator() {
                 <AlertCircle className="mt-0.5 size-4 shrink-0 text-destructive" aria-hidden="true" />
                 <div>
                   <p className="font-semibold text-destructive">
-                    Cannot reach the calculation engine
+                    {productsQuery.error instanceof EngineError &&
+                    productsQuery.error.kind === "unconfigured"
+                      ? "Calculation engine not configured"
+                      : "Cannot reach the calculation engine"}
                   </p>
                   <p className="mt-1 text-foreground">
                     {(productsQuery.error as Error).message}
                   </p>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="mt-3"
-                    onClick={() => productsQuery.refetch()}
-                  >
-                    Retry
-                  </Button>
+                  {productsQuery.error instanceof EngineError &&
+                  productsQuery.error.kind === "unconfigured" ? null : (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-3"
+                      onClick={() => productsQuery.refetch()}
+                    >
+                      Retry
+                    </Button>
+                  )}
                 </div>
               </CardContent>
             </Card>
