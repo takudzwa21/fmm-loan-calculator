@@ -216,15 +216,22 @@ unless you tell it where it is.
 1. **Deploy the engine somewhere that stays running**, e.g. [Render](https://render.com)
    (free tier is fine to start):
    - New "Web Service" → connect this GitHub repo.
-   - Runtime: Python 3. Build command: none needed (stdlib only — see `requirements.txt`).
+   - Runtime: Python 3. Build command: `pip install -r requirements.txt` (installs
+     `psycopg`, only needed if you use the PostgreSQL option below).
    - Start command: `python fmm_server.py --host 0.0.0.0`
      (it reads the platform's `$PORT` automatically; don't point a Uvicorn/Gunicorn
      command at it — it isn't a FastAPI/ASGI app).
    - Note the public URL Render gives you, e.g. `https://fmm-engine.onrender.com`.
    - **Caveat:** free-tier instances spin down when idle and lose their local disk on
-     restart, so custom products and quote history won't reliably persist there. Add a
-     paid persistent disk, or use a host with real persistent storage, if that matters
-     to you.
+     restart, so custom products and quote history won't reliably persist there unless
+     you also do the next step.
+   - **Optional but recommended: PostgreSQL persistence.** Add a Postgres database
+     (Render's own, or Neon/Supabase's free tiers) and set the `DATABASE_URL`
+     environment variable on the web service to its connection string. `fmm_server.py`
+     detects it automatically and stores custom products and quote history there
+     instead of local JSON files — see its module docstring. With no `DATABASE_URL`
+     set, it keeps using local files (fine for local dev, not reliable on hosts with
+     ephemeral disk).
 2. **Point the front-end at it**: in your Vercel project → Settings → Environment
    Variables, add `VITE_ENGINE_API_URL` = the URL from step 1, then redeploy.
 

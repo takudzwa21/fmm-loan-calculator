@@ -1,14 +1,20 @@
 # ─── Loan Charges Calculator Engine — dependencies ───
 # fmm_calculator.py (the engine) and fmm_server.py (the API server that wraps
-# it) are both standard-library-only, by design — see fmm_calculator.py's
-# module docstring. There is NOTHING to pip install to run either one.
+# it) are standard-library-only otherwise, by design — see fmm_calculator.py's
+# module docstring. The one real dependency below is only needed if you want
+# PostgreSQL-backed persistence (see fmm_server.py's module docstring); with
+# no DATABASE_URL set, fmm_server.py falls back to local JSON files and needs
+# nothing installed at all.
 #
 # Deploying fmm_server.py: the start command is just
 #     python fmm_server.py --host 0.0.0.0
 # It is a plain http.server app, not FastAPI/Flask/Django — no ASGI/WSGI
 # entry point, no "app" object. Do not point a Uvicorn/Gunicorn start
 # command at it.
-#
+
+# ── PostgreSQL persistence (optional — only used if DATABASE_URL is set) ──
+psycopg[binary]>=3.2
+
 # If you later want to model the quote structure as typed objects instead of
 # raw dicts, or need to read/write legacy .xlsx calculators, add:
 #   pydantic>=2.9

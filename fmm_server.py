@@ -13,7 +13,13 @@ just the standard library, matching fmm_calculator.py's own philosophy.
 
 Built-in products live only in code (fmm_calculator.py). Anything created
 through POST /products, and every quote calculated through POST /quote, is
-persisted to JSON files under ./.fmm_data/ so it survives a server restart.
+persisted so it survives a server restart:
+  - by default, to JSON files under ./.fmm_data/ (zero setup, but the files
+    live on local disk — fine for local dev, not reliable on hosts with
+    ephemeral storage, e.g. Render's free tier);
+  - if the DATABASE_URL environment variable is set (a Postgres connection
+    string — Render/Railway/Neon/Supabase all provide one), to PostgreSQL
+    instead. Requires `pip install -r requirements.txt` (adds psycopg).
 
 Endpoints (see README.md §4 for the full contract):
     GET    /products
@@ -42,6 +48,26 @@ from urllib.parse import parse_qs, urlsplit
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 from fmm_calculator import LoanApplication, ProductConfig, add_months, default_engine
+
+
+def _load_dotenv(path: Path | None = None) -> None:
+    """Minimal, dependency-free .env loader for local dev (see .env.example).
+    Real environment variables always win — this only fills in what's missing,
+    so a stray local .env can never override a real deployment's settings."""
+    path = path or Path(__file__).resolve().parent / ".env"
+    if not path.exists():
+        return
+    for line in path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, _, value = line.partition("=")
+        key = key.strip()
+        value = value.strip().strip('"').strip("'")
+        os.environ.setdefault(key, value)
+
+
+_load_dotenv()
 
 DATA_DIR = Path(__file__).resolve().parent / ".fmm_data"
 PRODUCTS_FILE = DATA_DIR / "products.json"
@@ -103,8 +129,80 @@ class JsonListStore:
         return removed
 
 
-products_store = JsonListStore(PRODUCTS_FILE)
-quotes_store = JsonListStore(QUOTES_FILE)
+class PostgresListStore:
+    """A tiny Postgres-backed list of JSON records, keyed by 'id'.
+
+    Same public interface as JsonListStore (all/get/upsert/delete/delete_where),
+    so the rest of this file doesn't care which one it's talking to. Each record
+    is stored as a JSON blob in a single TEXT column — filtering/sorting/search
+    stays in Python (see _list_quotes, purge_expired_quotes), same as before.
+    A fresh connection is opened per call: simplest thing that's correct, and
+    plenty fast enough at this app's traffic level.
+    """
+
+    CONNECT_TIMEOUT_SECONDS = 10
+
+    def __init__(self, dsn: str, table: str):
+        self.dsn = dsn
+        self.table = table
+        import psycopg  # imported lazily so JSON-file mode needs no extra install
+
+        self._psycopg = psycopg
+        with self._connect() as conn:
+            conn.execute(
+                f"CREATE TABLE IF NOT EXISTS {self.table} (id TEXT PRIMARY KEY, data TEXT NOT NULL)"
+            )
+
+    def _connect(self):
+        # Without an explicit timeout, an unreachable/misconfigured DATABASE_URL
+        # hangs the connect call indefinitely instead of failing — verified this
+        # the hard way. Fail fast and loud instead.
+        return self._psycopg.connect(
+            self.dsn, autocommit=True, connect_timeout=self.CONNECT_TIMEOUT_SECONDS
+        )
+
+    def all(self) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(f"SELECT data FROM {self.table}").fetchall()
+        return [json.loads(r[0]) for r in rows]
+
+    def get(self, record_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                f"SELECT data FROM {self.table} WHERE id = %s", (record_id,)
+            ).fetchone()
+        return json.loads(row[0]) if row else None
+
+    def upsert(self, record: dict) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                f"INSERT INTO {self.table} (id, data) VALUES (%s, %s) "
+                f"ON CONFLICT (id) DO UPDATE SET data = EXCLUDED.data",
+                (record["id"], json.dumps(record, default=str)),
+            )
+
+    def delete(self, record_id: str) -> bool:
+        with self._connect() as conn:
+            cur = conn.execute(f"DELETE FROM {self.table} WHERE id = %s", (record_id,))
+            return cur.rowcount > 0
+
+    def delete_where(self, predicate) -> int:
+        matching_ids = [r["id"] for r in self.all() if predicate(r)]
+        if not matching_ids:
+            return 0
+        with self._connect() as conn:
+            conn.execute(f"DELETE FROM {self.table} WHERE id = ANY(%s)", (matching_ids,))
+        return len(matching_ids)
+
+
+DATABASE_URL = os.environ.get("DATABASE_URL")
+
+if DATABASE_URL:
+    products_store = PostgresListStore(DATABASE_URL, "products")
+    quotes_store = PostgresListStore(DATABASE_URL, "quotes")
+else:
+    products_store = JsonListStore(PRODUCTS_FILE)
+    quotes_store = JsonListStore(QUOTES_FILE)
 
 # Quote history is transactional and ages out; product definitions are configuration
 # and never auto-expire. 0 disables auto-clearing.
@@ -443,7 +541,11 @@ def main() -> None:
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
     print(f"FMM Loan Charges Engine listening on http://{args.host}:{args.port}")
-    print(f"Persisting custom products and quote history under {DATA_DIR}")
+    if DATABASE_URL:
+        print("Persisting custom products and quote history to PostgreSQL (DATABASE_URL is set).")
+    else:
+        print(f"Persisting custom products and quote history under {DATA_DIR} "
+              "(set DATABASE_URL to use PostgreSQL instead).")
     if QUOTE_RETENTION_MONTHS > 0:
         print(f"Quote history older than {QUOTE_RETENTION_MONTHS} month(s) is auto-cleared.")
     else:

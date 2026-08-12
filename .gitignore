@@ -20,6 +20,12 @@ dist-ssr
 .wrangler/
 .dev.vars
 
+# Local secrets (VITE_ENGINE_API_URL, DATABASE_URL, ...) — never commit these.
+# .env.example is intentionally NOT ignored; it's the template.
+.env
+.env.*
+!.env.example
+
 # FMM engine local data (custom products, quote history) and Python artifacts
 .fmm_data/
 __pycache__/
